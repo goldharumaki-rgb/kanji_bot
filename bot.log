@@ -1,0 +1,6 @@
+2026-06-14 12:13:02,874 Bot dimulai — jadwal: 06:00 setiap hari
+2026-06-14 12:13:02,887 Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-14 12:13:02,888 Added job "kirim_harian" to job store "default"
+2026-06-14 12:13:02,888 Scheduler started
+2026-06-14 12:13:02,888 Mengirim pesan harian...
+2026-06-14 12:13:04,010 Pesan terkirim!

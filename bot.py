@@ -1,145 +1,198 @@
-import os, json, random, asyncio, logging, urllib.request
+import os, json, random, logging, urllib.request
 from datetime import datetime
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from dotenv import load_dotenv
-
-load_dotenv(os.path.expanduser("~/.env"))
 
 TOKEN   = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-HOUR    = int(os.getenv("SEND_HOUR", "6"))
-MINUTE  = int(os.getenv("SEND_MINUTE", "0"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 log = logging.getLogger(__name__)
 
 KANJI = [
-    ("日","にち/ひ","hari/matahari","今日はいい日です。","Kyou wa ii hi desu.","Hari ini hari yang baik."),
-    ("月","つき/げつ","bulan","月がきれいです。","Tsuki ga kirei desu.","Bulannya indah."),
-    ("火","ひ/か","api","火は熱い。","Hi wa atsui.","Api itu panas."),
-    ("水","みず/すい","air","水を飲みます。","Mizu o nomimasu.","Saya minum air."),
-    ("木","き/もく","pohon","木が大きい。","Ki ga ookii.","Pohonnya besar."),
-    ("金","かね/きん","emas/uang","お金がない。","Okane ga nai.","Tidak punya uang."),
-    ("土","つち/ど","tanah","土をさわります。","Tsuchi o sawarimasu.","Menyentuh tanah."),
-    ("山","やま/さん","gunung","山に登ります。","Yama ni noborimasu.","Mendaki gunung."),
-    ("川","かわ/せん","sungai","川で泳ぎます。","Kawa de oyogimasu.","Berenang di sungai."),
-    ("人","ひと/じん","orang","あの人は誰ですか。","Ano hito wa dare desuka.","Orang itu siapa?"),
-    ("口","くち/こう","mulut","口を開けてください。","Kuchi o akete kudasai.","Tolong buka mulut."),
-    ("手","て/しゅ","tangan","手を洗います。","Te o araimasu.","Mencuci tangan."),
-    ("目","め/もく","mata","目が痛い。","Me ga itai.","Mata sakit."),
-    ("耳","みみ/じ","telinga","耳で聞きます。","Mimi de kikimasu.","Mendengar dengan telinga."),
-    ("足","あし/そく","kaki","足が速い。","Ashi ga hayai.","Kakinya cepat."),
-    ("子","こ/し","anak","子どもが遊んでいます。","Kodomo ga asonde imasu.","Anak-anak sedang bermain."),
-    ("女","おんな/じょ","wanita","女の人です。","Onna no hito desu.","Itu wanita."),
-    ("男","おとこ/だん","laki-laki","男の子です。","Otoko no ko desu.","Itu anak laki-laki."),
-    ("父","ちち/ふ","ayah","父は会社員です。","Chichi wa kaishain desu.","Ayah saya karyawan."),
-    ("母","はは/ぼ","ibu","母は料理が上手です。","Haha wa ryouri ga jouzu desu.","Ibu pandai memasak."),
-    ("大","おお/だい","besar","大きい犬です。","Ookii inu desu.","Anjing yang besar."),
-    ("小","ちい/しょう","kecil","小さい猫です。","Chiisai neko desu.","Kucing yang kecil."),
-    ("中","なか/ちゅう","tengah/dalam","箱の中にあります。","Hako no naka ni arimasu.","Ada di dalam kotak."),
-    ("上","うえ/じょう","atas","机の上に本がある。","Tsukue no ue ni hon ga aru.","Ada buku di atas meja."),
-    ("下","した/か","bawah","椅子の下を見て。","Isu no shita o mite.","Lihat di bawah kursi."),
-    ("右","みぎ/う","kanan","右に曲がってください。","Migi ni magatte kudasai.","Tolong belok kanan."),
-    ("左","ひだり/さ","kiri","左の手です。","Hidari no te desu.","Tangan kiri."),
-    ("本","ほん/もと","buku","本を読みます。","Hon o yomimasu.","Membaca buku."),
-    ("学","まなぶ/がく","belajar","学校で学びます。","Gakkou de manabimasu.","Belajar di sekolah."),
-    ("先","さき/せん","duluan/guru","先生に聞きます。","Sensei ni kikimasu.","Bertanya kepada guru."),
-    ("生","いきる/せい","hidup/lahir","元気に生きます。","Genki ni ikimasu.","Hidup dengan sehat."),
-    ("年","とし/ねん","tahun","今年は何年ですか。","Kotoshi wa nannen desuka.","Tahun ini tahun berapa?"),
-    ("食","たべる/しょく","makan","ご飯を食べます。","Gohan o tabemasu.","Makan nasi."),
-    ("飲","のむ/いん","minum","水を飲みます。","Mizu o nomimasu.","Minum air."),
-    ("見","みる/けん","melihat","テレビを見ます。","Terebi o mimasu.","Menonton TV."),
-    ("聞","きく/ぶん","mendengar","音楽を聞きます。","Ongaku o kikimasu.","Mendengarkan musik."),
-    ("書","かく/しょ","menulis","手紙を書きます。","Tegami o kakimasu.","Menulis surat."),
-    ("読","よむ/どく","membaca","新聞を読みます。","Shinbun o yomimasu.","Membaca koran."),
-    ("話","はなす/わ","berbicara","日本語で話します。","Nihongo de hanashimasu.","Berbicara dalam bahasa Jepang."),
-    ("来","くる/らい","datang","友達が来ます。","Tomodachi ga kimasu.","Teman datang."),
-    ("行","いく/こう","pergi","学校に行きます。","Gakkou ni ikimasu.","Pergi ke sekolah."),
-    ("帰","かえる/き","pulang","家に帰ります。","Ie ni kaerimasu.","Pulang ke rumah."),
-    ("白","しろ/はく","putih","白いシャツです。","Shiroi shatsu desu.","Kemeja putih."),
-    ("黒","くろ/こく","hitam","黒い猫がいます。","Kuroi neko ga imasu.","Ada kucing hitam."),
-    ("赤","あか/せき","merah","赤いリンゴです。","Akai ringo desu.","Apel merah."),
-    ("青","あお/せい","biru","青い空がきれいです。","Aoi sora ga kirei desu.","Langit biru itu indah."),
-    ("花","はな/か","bunga","花を買います。","Hana o kaimasu.","Membeli bunga."),
-    ("雨","あめ/う","hujan","今日は雨です。","Kyou wa ame desu.","Hari ini hujan."),
-    ("空","そら/くう","langit/kosong","空が青い。","Sora ga aoi.","Langit biru."),
-    ("犬","いぬ/けん","anjing","犬が好きです。","Inu ga suki desu.","Suka anjing."),
-    ("猫","ねこ/びょう","kucing","猫は可愛い。","Neko wa kawaii.","Kucing itu lucu."),
-    ("魚","さかな/ぎょ","ikan","魚を食べます。","Sakana o tabemasu.","Makan ikan."),
-    ("円","えん","yen/bulat","千円ください。","Senen kudasai.","Tolong beri 1000 yen."),
-    ("気","き/け","perasaan/udara","元気ですか。","Genki desuka.","Apa kabar?"),
+    ("悪","わる/あく","buruk/jahat","悪い天気が続いています。","Warui tenki ga tsuzuite imasu.","Cuaca buruk terus berlanjut."),
+    ("安","やす/あん","murah/aman","この店は安くておいしい。","Kono mise wa yasukute oishii.","Toko ini murah dan enak."),
+    ("暗","くら/あん","gelap","部屋が暗いので電気をつけた。","Heya ga kurai node denki o tsuketa.","Karena kamar gelap, saya nyalakan lampu."),
+    ("医","い","dokter/mengobati","医者に診てもらった。","Isha ni mite moratta.","Saya diperiksa dokter."),
+    ("育","そだ/いく","membesarkan/tumbuh","子どもを大切に育てる。","Kodomo o taisetsu ni sodateru.","Membesarkan anak dengan penuh kasih."),
+    ("運","はこ/うん","nasib/mengangkut","運動は健康にいい。","Undou wa kenkou ni ii.","Olahraga baik untuk kesehatan."),
+    ("映","うつ/えい","memantulkan/film","映画を見に行きました。","Eiga o mi ni ikimashita.","Saya pergi menonton film."),
+    ("駅","えき","stasiun","駅まで歩いて10分です。","Eki made aruite juppun desu.","10 menit jalan kaki ke stasiun."),
+    ("横","よこ/おう","samping/horisontal","横断歩道を渡ってください。","Oudanhodou o watatte kudasai.","Tolong seberangi zebra cross."),
+    ("化","か/け","berubah/transformasi","文化の違いを理解する。","Bunka no chigai o rikai suru.","Memahami perbedaan budaya."),
+    ("界","かい","dunia/batas","世界中を旅したい。","Sekaijuu o tabi shitai.","Ingin berkeliling dunia."),
+    ("開","ひら/かい","membuka","会議を開きます。","Kaigi o hirakimasu.","Membuka rapat."),
+    ("感","かん","perasaan/emosi","感謝の気持ちを伝えた。","Kansha no kimochi o tsutaeta.","Menyampaikan rasa terima kasih."),
+    ("館","かん","gedung/bangunan","図書館で本を借りた。","Toshokan de hon o karita.","Meminjam buku di perpustakaan."),
+    ("起","お/き","bangun/terjadi","毎朝6時に起きます。","Maiasa rokuji ni okimasu.","Bangun jam 6 setiap pagi."),
+    ("急","いそ/きゅう","terburu-buru/mendadak","急いで駅に向かった。","Isoide eki ni mukatta.","Bergegas menuju stasiun."),
+    ("去","さ/きょ","pergi/lalu","去年日本に行きました。","Kyonen Nihon ni ikimashita.","Tahun lalu pergi ke Jepang."),
+    ("業","ぎょう/わざ","pekerjaan/industri","卒業式に出席した。","Sotsugyoushiki ni shusseki shita.","Menghadiri upacara kelulusan."),
+    ("近","ちか/きん","dekat","駅の近くに住んでいます。","Eki no chikaku ni sunde imasu.","Tinggal dekat stasiun."),
+    ("決","き/けつ","memutuskan","会議で決定しました。","Kaigi de kettei shimashita.","Diputuskan dalam rapat."),
+    ("県","けん","prefektur","神奈川県に住んでいます。","Kanagawa-ken ni sunde imasu.","Tinggal di Prefektur Kanagawa."),
+    ("験","けん","ujian/pengalaman","試験の結果が出た。","Shiken no kekka ga deta.","Hasil ujian sudah keluar."),
+    ("功","こう","jasa/keberhasilan","成功するまで諦めない。","Seikou suru made akiramenai.","Tidak menyerah sampai berhasil."),
+    ("港","みなと/こう","pelabuhan","神戸港は有名です。","Koube-kou wa yuumei desu.","Pelabuhan Kobe terkenal."),
+    ("最","もっと/さい","paling/terbanyak","最高の結果を出した。","Saikou no kekka o dashita.","Menghasilkan hasil terbaik."),
+    ("察","さつ","mengamati/memahami","状況を察して行動する。","Joukyou o sashite koudou suru.","Bertindak dengan memahami situasi."),
+    ("産","う/さん","melahirkan/produk","地元の産物を大切にする。","Jimoto no sanbutsu o taisetsu ni suru.","Menghargai produk lokal."),
+    ("試","こころ/し","mencoba/ujian","新しいことを試みる。","Atarashii koto o kokoromiru.","Mencoba hal baru."),
+    ("治","なお/じ","menyembuhkan/memerintah","病気が治りました。","Byouki ga naorimashita.","Penyakitnya sudah sembuh."),
+    ("守","まも/しゅ","menjaga/mematuhi","約束を守ってください。","Yakusoku o mamotte kudasai.","Tolong tepati janji."),
+    ("受","う/じゅ","menerima","試験を受けます。","Shiken o ukemasu.","Mengikuti ujian."),
+    ("集","あつ/しゅう","mengumpulkan","切手を集めています。","Kitte o atsumete imasu.","Saya mengoleksi perangko."),
+    ("住","す/じゅう","tinggal","東京に住んでいます。","Toukyou ni sunde imasu.","Tinggal di Tokyo."),
+    ("重","おも/じゅう","berat/penting","この荷物は重い。","Kono nimotsu wa omoi.","Barang bawaan ini berat."),
+    ("所","ところ/しょ","tempat","好きな場所はどこですか。","Sukina basho wa doko desuka.","Di mana tempat favoritmu?"),
+    ("助","たす/じょ","membantu/selamat","困っている人を助けた。","Komatte iru hito o tasuketa.","Membantu orang yang kesusahan."),
+    ("乗","の/じょう","menaiki","電車に乗ります。","Densha ni norimasu.","Naik kereta."),
+    ("身","み/しん","tubuh/diri","身体を大切にする。","Karada o taisetsu ni suru.","Menjaga tubuh dengan baik."),
+    ("神","かみ/しん","dewa/Tuhan","神社にお参りした。","Jinja ni omairi shita.","Berziarah ke kuil Shinto."),
+    ("進","すす/しん","maju/berkembang","計画が順調に進んでいる。","Keikaku ga junchou ni susunde iru.","Rencana berjalan dengan lancar."),
+    ("親","おや/しん","orang tua/akrab","親に感謝する。","Oya ni kansha suru.","Berterima kasih kepada orang tua."),
+    ("数","かず/すう","angka/jumlah","数学が得意です。","Suugaku ga tokui desu.","Saya pandai matematika."),
+    ("制","せい","sistem/kontrol","制度を改善する。","Seido o kaizen suru.","Memperbaiki sistem."),
+    ("席","せき","tempat duduk","席を予約しました。","Seki o yoyaku shimashita.","Memesan tempat duduk."),
+    ("選","えら/せん","memilih","代表を選びます。","Daihyou o erabimasu.","Memilih perwakilan."),
+    ("族","ぞく","kelompok/suku","家族旅行を計画した。","Kazoku ryokou o keikaku shita.","Merencanakan liburan keluarga."),
+    ("続","つづ/ぞく","melanjutkan","練習を続けてください。","Renshuu o tsuzukete kudasai.","Tolong lanjutkan latihannya."),
+    ("対","たい","melawan/pasangan","試合で対戦する。","Shiai de taisen suru.","Bertanding dalam pertandingan."),
+    ("待","ま/たい","menunggu","バスを待っています。","Basu o matte imasu.","Sedang menunggu bus."),
+    ("達","たち/たつ","mencapai/jamak orang","友達と出かけました。","Tomodachi to dekakemashita.","Pergi keluar bersama teman."),
+    ("地","ち/じ","tanah/tempat","地図で確認する。","Chizu de kakunin suru.","Mengecek di peta."),
+    ("知","し/ち","mengetahui","この情報を知っていますか。","Kono jouhou o shitte imasuka.","Apakah kamu tahu informasi ini?"),
+    ("注","そそ/ちゅう","menuang/perhatian","注意してください。","Chuui shite kudasai.","Tolong perhatikan."),
+    ("調","しら/ちょう","menyelidiki/nada","体調を整える。","Taichou o totonoeru.","Menjaga kondisi tubuh."),
+    ("転","ころ/てん","berputar/pindah","自転車に乗る練習をした。","Jitensha ni noru renshuu o shita.","Berlatih naik sepeda."),
+    ("都","みやこ/と","ibu kota/kota besar","東京都に住んでいます。","Toukyou-to ni sunde imasu.","Tinggal di Metropolis Tokyo."),
+    ("動","うご/どう","bergerak","体を動かすことが大切だ。","Karada o ugokasu koto ga taisetsu da.","Menggerakkan tubuh itu penting."),
+    ("農","のう","pertanian","農業を学んでいます。","Nougyou o manande imasu.","Sedang mempelajari pertanian."),
+    ("配","くば/はい","mendistribusikan/khawatir","心配しないでください。","Shinpai shinaide kudasai.","Tolong jangan khawatir."),
+    ("働","はたら/どう","bekerja","毎日一生懸命働いています。","Mainichi isshokenmei hataraite imasu.","Bekerja keras setiap hari."),
+    ("発","はつ/ほつ","berangkat/mengeluarkan","新幹線が発車しました。","Shinkansen ga hassha shimashita.","Shinkansen sudah berangkat."),
+    ("反","そ/はん","melawan/membalik","反対意見を述べた。","Hantai iken o nobeta.","Menyatakan pendapat yang menentang."),
+    ("美","うつく/び","indah","美しい景色に感動した。","Utsukushii keshiki ni kandou shita.","Terpesona oleh pemandangan indah."),
+    ("病","や/びょう","sakit/penyakit","病気で学校を休んだ。","Byouki de gakkou o yasunda.","Tidak masuk sekolah karena sakit."),
+    ("部","ぶ","bagian/departemen","営業部に所属しています。","Eigyoubu ni shozoku shite imasu.","Saya tergabung di bagian penjualan."),
+    ("服","ふく","pakaian","新しい服を買った。","Atarashii fuku o katta.","Membeli pakaian baru."),
+    ("平","たい/へい","datar/damai","平和な世界を望む。","Heiwa na sekai o nozomu.","Mendambakan dunia yang damai."),
+    ("別","わか/べつ","berpisah/berbeda","別の方法を試す。","Betsu no houhou o tamesu.","Mencoba cara yang berbeda."),
+    ("法","ほう/のり","hukum/cara","方法を工夫する。","Houhou o kuufuu suru.","Memikirkan cara yang lebih baik."),
+    ("望","のぞ/ぼう","berharap/memandang","成功を望んでいます。","Seikou o nozonde imasu.","Berharap untuk berhasil."),
+    ("満","み/まん","penuh/puas","電車が満員です。","Densha ga man-in desu.","Kereta penuh sesak."),
+    ("味","あじ/み","rasa/minat","この料理は味がいい。","Kono ryouri wa aji ga ii.","Masakan ini rasanya enak."),
+    ("無","な/む","tidak ada/tanpa","無料で入れます。","Muryou de hairemasu.","Bisa masuk secara gratis."),
+    ("命","いのち/めい","nyawa/perintah","命を大切にする。","Inochi o taisetsu ni suru.","Menghargai kehidupan."),
+    ("問","と/もん","bertanya/masalah","問題を解決する。","Mondai o kaiketsu suru.","Menyelesaikan masalah."),
+    ("役","やく","peran/berguna","役に立つ情報です。","Yaku ni tatsu jouhou desu.","Ini informasi yang berguna."),
+    ("有","あ/ゆう","ada/memiliki","有名な場所を訪れた。","Yuumei na basho o otozureta.","Mengunjungi tempat yang terkenal."),
+    ("予","あらかじ/よ","sebelumnya/rencana","予定を確認してください。","Yotei o kakunin shite kudasai.","Tolong cek jadwalnya."),
+    ("落","お/らく","jatuh/santai","成績が落ちた。","Seiseki ga ochita.","Nilai turun."),
+    ("利","き/り","keuntungan/tajam","便利な道具を使う。","Benri na dougu o tsukau.","Menggunakan alat yang praktis."),
+    ("流","なが/りゅう","mengalir/aliran","川が静かに流れている。","Kawa ga shizuka ni nagarete iru.","Sungai mengalir dengan tenang."),
+    ("旅","たび/りょ","perjalanan","旅行の計画を立てた。","Ryokou no keikaku o tateta.","Membuat rencana perjalanan."),
+    ("和","なご/わ","harmoni/Jepang","和食が好きです。","Washoku ga suki desu.","Saya suka masakan Jepang."),
 ]
 
 VOCAB = [
-    ("おはようございます","Selamat pagi (formal)","おはようございます、先生！","Ohayou gozaimasu, sensei!","Selamat pagi, Sensei!"),
-    ("こんにちは","Halo / Selamat siang","こんにちは、お元気ですか。","Konnichiwa, ogenki desuka.","Halo, apa kabar?"),
-    ("こんばんは","Selamat malam","こんばんは、今日も疲れましたね。","Konbanwa, kyou mo tsukaremashita ne.","Selamat malam, hari ini juga lelah ya."),
-    ("ありがとうございます","Terima kasih (formal)","助けてくれてありがとうございます。","Tasukete kurete arigatou gozaimasu.","Terima kasih sudah membantu."),
-    ("すみません","Permisi / Maaf","すみません、駅はどこですか。","Sumimasen, eki wa doko desuka.","Permisi, di mana stasiunnya?"),
-    ("はい","Ya","はい、わかりました。","Hai, wakarimashita.","Ya, saya mengerti."),
-    ("いいえ","Tidak","いいえ、知りません。","Iie, shirimasen.","Tidak, saya tidak tahu."),
-    ("わかりました","Mengerti / Paham","説明はわかりました。","Setsumei wa wakarimashita.","Penjelasannya sudah mengerti."),
-    ("わかりません","Tidak mengerti","日本語がわかりません。","Nihongo ga wakarimasen.","Saya tidak mengerti bahasa Jepang."),
-    ("どこ","Di mana","トイレはどこですか。","Toire wa doko desuka.","Di mana toilet?"),
-    ("いつ","Kapan","授業はいつですか。","Jugyou wa itsu desuka.","Kapan kelasnya?"),
-    ("だれ","Siapa","あの人は誰ですか。","Ano hito wa dare desuka.","Orang itu siapa?"),
-    ("なに","Apa","それは何ですか。","Sore wa nan desuka.","Itu apa?"),
-    ("いくら","Berapa harga","これはいくらですか。","Kore wa ikura desuka.","Ini berapa harganya?"),
-    ("これ","Ini","これは私の本です。","Kore wa watashi no hon desu.","Ini buku saya."),
-    ("それ","Itu","それは何ですか。","Sore wa nan desuka.","Itu apa?"),
-    ("あれ","Itu (jauh)","あれは富士山です。","Are wa Fujisan desu.","Itu Gunung Fuji."),
-    ("ここ","Di sini","ここに座ってください。","Koko ni suwatte kudasai.","Tolong duduk di sini."),
-    ("そこ","Di sana","そこに鍵があります。","Soko ni kagi ga arimasu.","Kuncinya ada di sana."),
-    ("いま","Sekarang","今何時ですか。","Ima nanji desuka.","Sekarang jam berapa?"),
-    ("きょう","Hari ini","今日は何曜日ですか。","Kyou wa nanyoubi desuka.","Hari ini hari apa?"),
-    ("あした","Besok","明日また会いましょう。","Ashita mata aimashou.","Sampai jumpa besok."),
-    ("きのう","Kemarin","昨日は休みでした。","Kinou wa yasumi deshita.","Kemarin hari libur."),
-    ("まいにち","Setiap hari","毎日日本語を勉強します。","Mainichi nihongo o benkyou shimasu.","Belajar bahasa Jepang setiap hari."),
-    ("あさ","Pagi","朝ごはんを食べます。","Asa gohan o tabemasu.","Makan sarapan pagi."),
-    ("よる","Malam","夜は早く寝ます。","Yoru wa hayaku nemasu.","Malam tidur cepat."),
-    ("すき","Suka","ラーメンが好きです。","Raamen ga suki desu.","Saya suka ramen."),
-    ("きらい","Tidak suka","虫が嫌いです。","Mushi ga kirai desu.","Saya tidak suka serangga."),
-    ("おおきい","Besar","大きい家に住みたい。","Ookii ie ni sumitai.","Ingin tinggal di rumah besar."),
-    ("ちいさい","Kecil","小さい犬が可愛い。","Chiisai inu ga kawaii.","Anjing kecil itu lucu."),
-    ("たかい","Mahal/Tinggi","このレストランは高いです。","Kono resutoran wa takai desu.","Restoran ini mahal."),
-    ("やすい","Murah","このお店は安いです。","Kono omise wa yasui desu.","Toko ini murah."),
-    ("おいしい","Enak","このラーメンはおいしい！","Kono raamen wa oishii!","Ramen ini enak!"),
-    ("むずかしい","Sulit","漢字は難しいです。","Kanji wa muzukashii desu.","Kanji itu sulit."),
-    ("やさしい","Mudah/Baik hati","先生は優しいです。","Sensei wa yasashii desu.","Gurunya baik hati."),
-    ("いきます","Pergi","学校に行きます。","Gakkou ni ikimasu.","Pergi ke sekolah."),
-    ("きます","Datang","友達が来ます。","Tomodachi ga kimasu.","Teman datang."),
-    ("たべます","Makan","寿司を食べます。","Sushi o tabemasu.","Makan sushi."),
-    ("のみます","Minum","お茶を飲みます。","Ocha o nomimasu.","Minum teh."),
-    ("みます","Melihat/Menonton","映画を見ます。","Eiga o mimasu.","Menonton film."),
-    ("かきます","Menulis","名前を書きます。","Namae o kakimasu.","Menulis nama."),
-    ("よみます","Membaca","本を読みます。","Hon o yomimasu.","Membaca buku."),
-    ("はなします","Berbicara","電話で話します。","Denwa de hanashimasu.","Berbicara di telepon."),
-    ("かいます","Membeli","スーパーで野菜を買います。","Suupaa de yasai o kaimasu.","Membeli sayuran di supermarket."),
-    ("あります","Ada (benda)","財布がありますか。","Saifu ga arimasuka.","Apakah ada dompet?"),
-    ("います","Ada (orang/hewan)","猫が家にいます。","Neko ga ie ni imasu.","Kucing ada di rumah."),
-    ("でんしゃ","Kereta listrik","電車で行きます。","Densha de ikimasu.","Pergi naik kereta."),
-    ("がっこう","Sekolah","学校は楽しいです。","Gakkou wa tanoshii desu.","Sekolah menyenangkan."),
-    ("ともだち","Teman","友達と遊びます。","Tomodachi to asobimasu.","Bermain dengan teman."),
-    ("かぞく","Keluarga","家族が大切です。","Kazoku ga taisetsu desu.","Keluarga itu penting."),
-    ("せんせい","Guru","先生に質問します。","Sensei ni shitsumon shimasu.","Bertanya kepada guru."),
-    ("べんきょう","Belajar","毎日勉強します。","Mainichi benkyou shimasu.","Belajar setiap hari."),
-    ("にほんご","Bahasa Jepang","日本語は面白い。","Nihongo wa omoshiroi.","Bahasa Jepang itu menarik."),
-    ("コーヒー","Kopi","朝コーヒーを飲みます。","Asa koohii o nomimasu.","Minum kopi di pagi hari."),
-    ("ごはん","Nasi / Makanan","ご飯を食べましょう！","Gohan o tabemashou!","Ayo makan!"),
+    ("あいさつ","salam/sapaan","毎朝あいさつをします。","Maiasa aisatsu o shimasu.","Memberi salam setiap pagi."),
+    ("あきらめる","menyerah","夢をあきらめないで。","Yume o akiramenaide.","Jangan menyerah pada impianmu."),
+    ("あつまる","berkumpul","みんなが公園に集まった。","Minna ga kouen ni atsumatta.","Semua berkumpul di taman."),
+    ("あやまる","meminta maaf","失敗したのであやまった。","Shippai shita node ayamatta.","Meminta maaf karena gagal."),
+    ("いつでも","kapan saja","いつでも相談してください。","Itsudemo soudan shite kudasai.","Silakan berkonsultasi kapan saja."),
+    ("うける","menerima/mengikuti ujian","試験を受けます。","Shiken o ukemasu.","Mengikuti ujian."),
+    ("うまくいく","berjalan dengan baik","計画がうまくいった。","Keikaku ga umaku itta.","Rencananya berjalan dengan baik."),
+    ("えいきょう","pengaruh","天気が気分に影響する。","Tenki ga kibun ni eikyou suru.","Cuaca mempengaruhi suasana hati."),
+    ("えんりょ","sungkan/menahan diri","遠慮しないでください。","Enryo shinaide kudasai.","Jangan sungkan."),
+    ("おかげ","berkat/karena","あなたのおかげで助かった。","Anata no okage de tasukatta.","Terselamatkan berkat kamu."),
+    ("おこなう","melaksanakan/melakukan","式典を行います。","Shikiten o okonaimasu.","Melaksanakan upacara."),
+    ("おそらく","mungkin/kemungkinan besar","おそらく明日は雨でしょう。","Osoraku ashita wa ame deshou.","Kemungkinan besar besok akan hujan."),
+    ("おたがい","satu sama lain","お互いに助け合いましょう。","Otagai ni tasuke aimashou.","Mari saling membantu satu sama lain."),
+    ("おどろく","terkejut","その知らせに驚いた。","Sono shirase ni odoroita.","Terkejut dengan berita itu."),
+    ("おもいやり","empati/perhatian","思いやりのある人が好きだ。","Omoiyari no aru hito ga suki da.","Suka orang yang penuh empati."),
+    ("かいぎ","rapat","午後から会議があります。","Gogo kara kaigi ga arimasu.","Ada rapat dari siang."),
+    ("かかわる","berhubungan/terlibat","この問題に関わっています。","Kono mondai ni kakawatte imasu.","Terlibat dalam masalah ini."),
+    ("かくにん","konfirmasi/pengecekan","予約を確認してください。","Yoyaku o kakunin shite kudasai.","Tolong konfirmasi reservasinya."),
+    ("かたづける","membereskan","部屋を片付けた。","Heya o katazuketa.","Membereskan kamar."),
+    ("かならず","pasti/tentu","必ず時間を守ってください。","Kanarazu jikan o mamotte kudasai.","Tolong pasti tepat waktu."),
+    ("かんがえかた","cara berpikir","考え方を変えてみよう。","Kangaekata o kaete miyou.","Mari mencoba mengubah cara berpikir."),
+    ("かんきょう","lingkungan","環境を守ることが大切だ。","Kankyou o mamoru koto ga taisetsu da.","Menjaga lingkungan itu penting."),
+    ("かんけい","hubungan/kaitan","この問題と関係がある。","Kono mondai to kankei ga aru.","Ada hubungannya dengan masalah ini."),
+    ("かんしゃ","rasa syukur/terima kasih","感謝の気持ちを忘れない。","Kansha no kimochi o wasurenai.","Tidak melupakan rasa syukur."),
+    ("かんじる","merasakan","春の暖かさを感じる。","Haru no atatakasa o kanjiru.","Merasakan hangatnya musim semi."),
+    ("きけん","bahaya","危険な場所に近づかない。","Kiken na basho ni chikazukanai.","Tidak mendekati tempat berbahaya."),
+    ("きびしい","keras/ketat","先生は厳しいが優しい。","Sensei wa kibishii ga yasashii.","Gurunya ketat tapi baik hati."),
+    ("きまる","diputuskan/ditetapkan","日程が決まりました。","Nittei ga kimarimashita.","Jadwalnya sudah ditetapkan."),
+    ("きゅうに","tiba-tiba","急に雨が降り始めた。","Kyuu ni ame ga furihajimeta.","Tiba-tiba hujan mulai turun."),
+    ("きをつける","berhati-hati","車に気をつけてください。","Kuruma ni ki o tsukete kudasai.","Tolong berhati-hati dengan mobil."),
+    ("くらべる","membandingkan","二つを比べてみた。","Futatsu o kurabete mita.","Mencoba membandingkan keduanya."),
+    ("けいかく","rencana","旅行の計画を立てた。","Ryokou no keikaku o tateta.","Membuat rencana perjalanan."),
+    ("けいけん","pengalaman","海外での経験が役立つ。","Kaigai de no keiken ga yakudatsu.","Pengalaman di luar negeri berguna."),
+    ("けっか","hasil/akibat","努力の結果が出た。","Doryoku no kekka ga deta.","Hasil dari kerja keras sudah keluar."),
+    ("けっして","sama sekali tidak","決して諦めません。","Kesshite akiramemasen.","Sama sekali tidak akan menyerah."),
+    ("こうどう","tindakan/perilaku","積極的に行動する。","Sekkyokuteki ni koudou suru.","Bertindak secara aktif."),
+    ("ことわる","menolak","誘いを断った。","Sasoi o kotowatta.","Menolak ajakan."),
+    ("このごろ","belakangan ini","このごろ忙しいです。","Konogoro isogashii desu.","Belakangan ini sibuk."),
+    ("さいきん","baru-baru ini","最近忙しくなった。","Saikin isogashiku natta.","Akhir-akhir ini semakin sibuk."),
+    ("さいご","terakhir/akhir","最後まで頑張ってください。","Saigo made ganbatte kudasai.","Tolong semangat sampai akhir."),
+    ("さらに","lebih lagi/selain itu","さらに詳しく説明します。","Sara ni kuwashiku setsumei shimasu.","Akan menjelaskan lebih detail lagi."),
+    ("しかたがない","tidak bisa diapa-apakan","遅刻したのはしかたがない。","Chikoku shita no wa shikata ga nai.","Terlambat itu tidak bisa diapa-apakan."),
+    ("しごと","pekerjaan","仕事が忙しい。","Shigoto ga isogashii.","Pekerjaan sedang sibuk."),
+    ("しつれい","tidak sopan/permisi","失礼しました。","Shitsurei shimashita.","Maaf atas ketidaksopanan saya."),
+    ("じっさい","kenyataannya/sebenarnya","実際に試してみた。","Jissai ni tameshite mita.","Mencoba dalam kenyataan."),
+    ("じゅんび","persiapan","発表の準備をする。","Happyou no junbi o suru.","Mempersiapkan presentasi."),
+    ("じょうほう","informasi","正確な情報が必要だ。","Seikaku na jouhou ga hitsuyou da.","Informasi yang akurat diperlukan."),
+    ("しらべる","menyelidiki/mencari tahu","インターネットで調べた。","Intaanetto de shirabeta.","Mencari tahu di internet."),
+    ("しんぱい","khawatir","心配しないでください。","Shinpai shinaide kudasai.","Jangan khawatir."),
+    ("すすむ","maju/berkembang","勉強が順調に進んでいる。","Benkyou ga junchou ni susunde iru.","Belajar berjalan dengan lancar."),
+    ("すっかり","sepenuhnya/sama sekali","すっかり忘れてしまった。","Sukkari wasurete shimatta.","Sudah benar-benar lupa."),
+    ("せいかつ","kehidupan sehari-hari","健康的な生活を送る。","Kenkoukeki na seikatsu o okuru.","Menjalani kehidupan yang sehat."),
+    ("ぜったいに","pasti/mutlak","絶対に諦めない。","Zettai ni akiramenai.","Pasti tidak akan menyerah."),
+    ("そうだん","konsultasi","先生に相談した。","Sensei ni soudan shita.","Berkonsultasi dengan guru."),
+    ("それほど","sebegitu/separah itu","それほど難しくない。","Sorehodo muzukashiku nai.","Tidak sesulit itu."),
+    ("たいせつ","penting/berharga","家族は大切な存在だ。","Kazoku wa taisetsu na sonzai da.","Keluarga adalah keberadaan yang berharga."),
+    ("たとえば","misalnya/contohnya","たとえば、りんごや桃などです。","Tatoeba, ringo ya momo nado desu.","Misalnya, apel atau persik dan sebagainya."),
+    ("たのむ","meminta tolong/memesan","友達に手伝いを頼んだ。","Tomodachi ni tetsudai o tanonda.","Meminta tolong kepada teman."),
+    ("ちがい","perbedaan","二つの意見の違いを説明する。","Futatsu no iken no chigai o setsumei suru.","Menjelaskan perbedaan dua pendapat."),
+    ("ちょくせつ","langsung/secara langsung","直接話し合いました。","Chokusetsu hanashiaimashita.","Berdiskusi secara langsung."),
+    ("つたえる","menyampaikan/memberitahu","大切なことを伝えたい。","Taisetsu na koto o tsutaetai.","Ingin menyampaikan hal penting."),
+    ("つづける","melanjutkan/meneruskan","毎日練習を続ける。","Mainichi renshuu o tsuzukeru.","Melanjutkan latihan setiap hari."),
+    ("てつだう","membantu/menolong","引越しを手伝いました。","Hikkoshi o tetsudaimashita.","Membantu pindahan."),
+    ("とくに","terutama/khususnya","特に数学が得意です。","Toku ni suugaku ga tokui desu.","Terutama pandai matematika."),
+    ("なかなか","cukup/lumayan/tidak mudah","なかなか難しい問題だ。","Nakanaka muzukashii mondai da.","Ini masalah yang cukup sulit."),
+    ("なるべく","sebisa mungkin","なるべく早く来てください。","Narubeku hayaku kite kudasai.","Tolong datang secepat mungkin."),
+    ("にがて","tidak pandai/lemah dalam","数学が苦手です。","Suugaku ga nigate desu.","Tidak pandai matematika."),
+    ("はっきり","dengan jelas/tegas","はっきり言ってください。","Hakkiri itte kudasai.","Tolong bicara dengan jelas."),
+    ("はなしあう","berdiskusi/berunding","問題について話し合った。","Mondai ni tsuite hanashiatta.","Berdiskusi tentang masalah."),
+    ("はんたい","kebalikan/menentang","計画に反対する人がいる。","Keikaku ni hantai suru hito ga iru.","Ada orang yang menentang rencana."),
+    ("ひつよう","perlu/diperlukan","パスポートが必要です。","Pasupooto ga hitsuyou desu.","Paspor diperlukan."),
+    ("ふつう","biasa/normal","普通に生活しています。","Futsuu ni seikatsu shite imasu.","Menjalani kehidupan yang normal."),
+    ("ぶんか","budaya","日本の文化に興味がある。","Nihon no bunka ni kyoumi ga aru.","Tertarik dengan budaya Jepang."),
+    ("へんか","perubahan","気候の変化が激しい。","Kikou no henka ga hageshii.","Perubahan iklim sangat drastis."),
+    ("ほうほう","cara/metode","効率的な方法を探す。","Kouritsutek na houhou o sagasu.","Mencari cara yang efisien."),
+    ("まにあう","tepat waktu/keburu","電車に間に合った。","Densha ni ma ni atta.","Keburu keretanya."),
+    ("まもる","menjaga/melindungi","環境を守る必要がある。","Kankyou o mamoru hitsuyou ga aru.","Perlu menjaga lingkungan."),
+    ("むしろ","lebih baik/justru","むしろ一人の方が楽だ。","Mushiro hitori no hou ga raku da.","Justru lebih nyaman sendirian."),
+    ("もったいない","sayang/mubazir","食べ物を捨てるのはもったいない。","Tabemono o suteru no wa mottainai.","Sayang membuang makanan."),
+    ("やくにたつ","berguna/bermanfaat","この知識はきっと役に立つ。","Kono chishiki wa kitto yaku ni tatsu.","Pengetahuan ini pasti berguna."),
+    ("やっぱり","ternyata/memang","やっぱり日本語は難しい。","Yappari nihongo wa muzukashii.","Ternyata bahasa Jepang memang sulit."),
+    ("ゆっくり","pelan-pelan/santai","ゆっくり話してください。","Yukkuri hanashite kudasai.","Tolong bicara pelan-pelan."),
+    ("よてい","jadwal/rencana","明日の予定は何ですか。","Ashita no yotei wa nan desuka.","Apa rencanamu besok?"),
+    ("りかい","pemahaman/pengertian","相手の気持ちを理解する。","Aite no kimochi o rikai suru.","Memahami perasaan orang lain."),
+    ("りゆう","alasan/sebab","遅刻した理由を説明した。","Chikoku shita riyuu o setsumei shita.","Menjelaskan alasan terlambat."),
+    ("れんしゅう","latihan/praktik","毎日練習することが大切だ。","Mainichi renshuu suru koto ga taisetsu da.","Berlatih setiap hari itu penting."),
+    ("れんらく","kontak/pemberitahuan","明日連絡します。","Ashita renraku shimasu.","Saya akan menghubungi besok."),
+    ("わざわざ","sengaja/repot-repot","わざわざ来てくれてありがとう。","Wazawaza kite kurete arigatou.","Terima kasih sudah repot-repot datang."),
 ]
 
 TIPS = [
-    "Ulangi kanji sambil menulis — tangan membantu otak mengingat lebih lama!",
-    "Baca kanji keras-keras saat belajar. Kombinasi visual + suara mempercepat hafalan.",
-    "Coba buat kalimat sendiri menggunakan kanji hari ini. Kreativitas = ingatan kuat!",
-    "Flashcard digital seperti Anki sangat efektif untuk kanji. Coba gunakan hari ini!",
-    "Istirahat 5 menit setelah belajar 25 menit (Pomodoro). Otak butuh jeda untuk menyerap!",
-    "Tulis kanji 5 kali sebelum tidur malam ini. Review sebelum tidur = ingatan lebih tajam.",
-    "Konsistensi lebih penting dari intensitas. 10 menit setiap hari lebih baik dari 2 jam seminggu sekali.",
-    "Hubungkan kanji baru dengan sesuatu yang sudah kamu tahu. Asosiasi = kunci hafalan!",
-    "Jangan takut salah! Kesalahan adalah bagian terpenting dari proses belajar bahasa.",
-    "Cari drama atau anime Jepang dengan subtitle. Mendengar langsung mempercepat pemahaman!",
+    "Kanji N3 lebih kompleks — fokus pada radical untuk membantu hafalan!",
+    "Buat kalimat sendiri dengan kosakata N3 hari ini. Konteks nyata = ingatan lebih kuat!",
+    "Coba baca berita Jepang sederhana di NHK Web Easy — cocok untuk level N3.",
+    "Pelajari pola kalimat N3 seperti 〜ために、〜ように、〜ながら secara bertahap.",
+    "Review kanji yang sudah dipelajari seminggu lalu. Spaced repetition = kunci sukses!",
+    "Tulis diary singkat dalam bahasa Jepang menggunakan kosakata hari ini.",
+    "Konsistensi adalah kunci. Belajar 20 menit setiap hari lebih baik dari 3 jam seminggu sekali.",
+    "Pahami nuansa kata — misalnya perbedaan むしろ vs かえって sangat penting di N3!",
 ]
 
 def kirim_pesan(text):
@@ -162,11 +215,11 @@ def buat_pesan():
     tip = random.Random(today.year*10000+today.month*100+today.day+99).choice(TIPS)
 
     baris = []
-    baris.append(f"🌸 *OHAYOU GOZAIMASU!* 🌸")
+    baris.append("🌸 *OHAYOU GOZAIMASU!* 🌸")
     baris.append(f"_{hari}, {tanggal}_")
-    baris.append("Semangat belajar bahasa Jepang hari ini! ✨\n")
+    baris.append("Semangat belajar bahasa Jepang N3 hari ini! ✨\n")
     baris.append("━━━━━━━━━━━━━━━━━━━━")
-    baris.append("📖 *5 KANJI HARI INI*")
+    baris.append("📖 *5 KANJI N3 HARI INI*")
     baris.append("━━━━━━━━━━━━━━━━━━━━\n")
     for kanji, baca, arti, contoh, romaji, terjemah in kanji_list:
         baris.append(f"🔴 *{kanji}* — {baca}")
@@ -175,7 +228,7 @@ def buat_pesan():
         baris.append(f"   ({romaji})")
         baris.append(f"   → {terjemah}\n")
     baris.append("━━━━━━━━━━━━━━━━━━━━")
-    baris.append("💬 *5 KOSAKATA HARI INI*")
+    baris.append("💬 *5 KOSAKATA N3 HARI INI*")
     baris.append("━━━━━━━━━━━━━━━━━━━━\n")
     for kata, arti, contoh, romaji, terjemah in vocab_list:
         baris.append(f"🔵 *{kata}* — {arti}")
@@ -183,26 +236,11 @@ def buat_pesan():
         baris.append(f"   ({romaji})")
         baris.append(f"   → {terjemah}\n")
     baris.append("━━━━━━━━━━━━━━━━━━━━")
-    baris.append(f"💪 *TIPS HARI INI*")
+    baris.append("💪 *TIPS N3 HARI INI*")
     baris.append(f"_{tip}_\n")
     baris.append("がんばってください！ 🎌")
     return "\n".join(baris)
 
-def kirim_harian():
-    log.info("Mengirim pesan harian...")
-    try:
-        kirim_pesan(buat_pesan())
-        log.info("Pesan terkirim!")
-    except Exception as e:
-        log.error(f"Error: {e}")
-
-async def main():
-    log.info(f"Bot dimulai — jadwal: {HOUR:02d}:{MINUTE:02d} setiap hari")
-    scheduler = AsyncIOScheduler(timezone="Asia/Tokyo")
-    scheduler.add_job(kirim_harian, CronTrigger(hour=HOUR, minute=MINUTE, timezone="Asia/Tokyo"))
-    scheduler.start()
-    kirim_harian()
-    while True:
-        await asyncio.sleep(60)
-
-asyncio.run(main())
+log.info("Mengirim pesan harian N3...")
+kirim_pesan(buat_pesan())
+log.info("Selesai!")
