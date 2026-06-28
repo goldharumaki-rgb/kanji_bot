@@ -781,8 +781,8 @@ TIPS = [
 # ============================================================
 TOTAL_KANJI     = len(KANJI)
 TOTAL_VOCAB     = len(VOCAB)
-KANJI_PER_HARI  = 6   # 300 kanji ÷ 3 = 100 hari
-VOCAB_PER_HARI  = 7   # 700 vocab ÷ 5 = 140 hari → selesai ~sama
+KANJI_PER_HARI  = 3   # 300 kanji ÷ 3 = 100 hari
+VOCAB_PER_HARI  = 5   # 700 vocab ÷ 5 = 140 hari → selesai ~sama
 TOTAL_HARI      = max(
     -(-TOTAL_KANJI // KANJI_PER_HARI),
     -(-TOTAL_VOCAB // VOCAB_PER_HARI)
