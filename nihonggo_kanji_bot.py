@@ -1,4 +1,4 @@
-import os, json, random, logging, urllib.request
+import os, json, random, logging, urllib.request, re
 from datetime import datetime
 
 TOKEN   = os.getenv("TELEGRAM_TOKEN")
@@ -1649,6 +1649,54 @@ def buat_pesan_selesai():
     msg.append("おめでとうございます！ 🎌🎊")
     return "\n".join(msg)
 
+POLA_TATA_BAHASA = [
+    (r"てください", "～てください (Tolong lakukan ~)", "Digunakan untuk meminta atau memerintah orang lain melakukan sesuatu dengan sopan. Contoh: 待ってください (Tolong tunggu)."),
+    (r"ています", "～ています (Sedang ~ / kondisi berlanjut)", "Menunjukkan aksi yang sedang berlangsung atau kondisi yang masih berlaku. Contoh: 住んでいます (sedang tinggal)."),
+    (r"ました", "～ました (Bentuk lampau sopan)", "Bentuk lampau dari kata kerja sopan (~ます). Menunjukkan aksi yang sudah terjadi."),
+    (r"たいです|たい。", "～たい (Ingin ~)", "Menyatakan keinginan untuk melakukan sesuatu. Contoh: 行きたい (ingin pergi)."),
+    (r"でしょう", "～でしょう (Mungkin ~ / dugaan)", "Digunakan untuk menyatakan dugaan atau perkiraan dengan sopan."),
+    (r"かもしれない", "～かもしれない (Mungkin ~)", "Menyatakan kemungkinan yang tidak pasti, lebih ringan dari でしょう."),
+    (r"なければ|なくては", "～なければならない (Harus ~)", "Menyatakan kewajiban atau keharusan melakukan sesuatu."),
+    (r"てもいい", "～てもいい (Boleh ~)", "Menyatakan izin untuk melakukan sesuatu."),
+    (r"てはいけない|ないでください", "～てはいけない (Tidak boleh / Jangan ~)", "Menyatakan larangan melakukan sesuatu."),
+    (r"ながら", "～ながら (Sambil ~)", "Menyatakan dua aksi yang dilakukan bersamaan oleh subjek yang sama."),
+    (r"ばよかった", "～ばよかった (Seandainya saja ~)", "Menyatakan penyesalan terhadap sesuatu yang tidak dilakukan."),
+    (r"そうです|そうだ", "～そうだ (Kelihatannya ~)", "Menyatakan kesan atau perkiraan berdasarkan apa yang dilihat/dirasakan."),
+    (r"たり.*たり", "～たり～たりする (Melakukan ini-itu)", "Menyebutkan beberapa contoh aktivitas yang dilakukan, tidak berurutan."),
+    (r"てから", "～てから (Setelah ~)", "Menyatakan urutan: melakukan sesuatu, lalu baru melakukan hal berikutnya."),
+    (r"ように", "～ように (Agar supaya ~)", "Menyatakan tujuan atau harapan dari suatu tindakan."),
+    (r"ために", "～ために (Demi / untuk tujuan ~)", "Menyatakan tujuan dari suatu tindakan, biasanya untuk manfaat tertentu."),
+    (r"のに", "～のに (Padahal ~)", "Menyatakan pertentangan antara harapan dan kenyataan."),
+    (r"ても", "～ても (Meskipun ~)", "Menyatakan kondisi yang tidak berpengaruh pada hasil."),
+    (r"すぎる", "～すぎる (Terlalu ~)", "Menyatakan sesuatu berlebihan dari batas normal."),
+    (r"やすい", "～やすい (Mudah untuk ~)", "Menyatakan sesuatu mudah dilakukan."),
+    (r"にくい", "～にくい (Sulit untuk ~)", "Menyatakan sesuatu sulit dilakukan."),
+    (r"について", "～について (Tentang ~)", "Menyatakan topik pembicaraan atau tulisan."),
+    (r"によると", "～によると (Menurut ~)", "Menyatakan sumber informasi."),
+    (r"おかげで", "～おかげで (Berkat ~)", "Menyatakan sebab positif yang menghasilkan hasil baik."),
+    (r"せいで", "～せいで (Gara-gara ~)", "Menyatakan sebab negatif yang menghasilkan hasil buruk."),
+    (r"てしまう|てしまった", "～てしまう (Selesai melakukan / terlanjur ~)", "Menyatakan aksi yang telah tuntas dilakukan, kadang menyiratkan penyesalan."),
+    (r"ておく|ておいた", "～ておく (Melakukan sesuatu lebih dulu)", "Menyatakan tindakan persiapan untuk keperluan nanti."),
+    (r"てみる|てみた|てみて", "～てみる (Mencoba melakukan ~)", "Menyatakan percobaan melakukan sesuatu untuk melihat hasilnya."),
+    (r"てあげる|てあげた", "～てあげる (Melakukan untuk orang lain)", "Menyatakan tindakan baik yang dilakukan untuk orang lain."),
+    (r"てもらう|てもらった", "～てもらう (Meminta orang melakukan)", "Menyatakan menerima bantuan dari orang lain."),
+    (r"てくれる|てくれた", "～てくれる (Orang melakukan untuk kita)", "Menyatakan orang lain melakukan sesuatu yang menguntungkan kita."),
+    (r"たら", "～たら (Jika/Kalau ~)", "Menyatakan kondisi pengandaian; jika suatu hal terjadi, maka..."),
+    (r"う。$|く。$|む。$|ぶ。$|ぬ。$|つ。$|す。$|る。$", "Bentuk Kamus (Dasar)", "Bentuk dasar kata kerja, biasa dipakai dalam kalimat informal atau sebelum partikel tertentu."),
+]
+
+def cari_pola_tata_bahasa(kanji_list, vocab_list):
+    """Deteksi pola tata bahasa yang muncul dalam contoh kalimat hari ini."""
+    semua_kalimat = [k[3] for k in kanji_list] + [v[2] for v in vocab_list]
+    gabung = " ".join(semua_kalimat)
+    ditemukan = []
+    for pattern, nama, penjelasan in POLA_TATA_BAHASA:
+        if re.search(pattern, gabung):
+            ditemukan.append((nama, penjelasan))
+        if len(ditemukan) >= 2:
+            break
+    return ditemukan
+
 def buat_pesan_harian(hari_ke, kanji_list, vocab_list):
     today   = datetime.now()
     hari    = ["Senin","Selasa","Rabu","Kamis","Jumat","Sabtu","Minggu"][today.weekday()]
@@ -1684,6 +1732,17 @@ def buat_pesan_harian(hari_ke, kanji_list, vocab_list):
         baris.append(f"└ Contoh: {contoh}")
         baris.append(f"   ({romaji})")
         baris.append(f"   → {terjemah}\n")
+    baris.append("━━━━━━━━━━━━━━━━━━━━")
+    baris.append("📐 *POLA TATA BAHASA HARI INI*")
+    baris.append("━━━━━━━━━━━━━━━━━━━━\n")
+    pola_list = cari_pola_tata_bahasa(kanji_list, vocab_list)
+    if pola_list:
+        for nama, penjelasan in pola_list:
+            baris.append(f"📌 *{nama}*")
+            baris.append(f"{penjelasan}\n")
+    else:
+        baris.append("_Tidak ada pola tata bahasa khusus yang terdeteksi hari ini._")
+        baris.append("_Fokus pada kosakata dan kanji dasar._\n")
     baris.append("━━━━━━━━━━━━━━━━━━━━")
     baris.append("💪 *TIPS HARI INI*")
     baris.append(f"_{tip}_\n")
